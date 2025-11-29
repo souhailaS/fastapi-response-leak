@@ -41,7 +41,6 @@
         const start = Date.now();
         let firstByteTime = null;
         let chunks = [];
-        let receivedContent = false;
 
         try {
           const response = await fetch(endpoint);
@@ -55,7 +54,6 @@
 
             if (firstByteTime === null) {
               firstByteTime = Date.now() - start;
-              receivedContent = true;
               timing.textContent = `First byte received: ${firstByteTime}ms\n`;
             }
 
@@ -69,11 +67,11 @@
           result.textContent = `Status: ${response.status}\nTotal time: ${totalTime}ms\nResponse: ${text}`;
           timing.textContent += `\nFinal response at: ${totalTime}ms\n`;
 
-          if (response.status === 402 && receivedContent) {
+          if (response.status === 402 && chunks.length > 0) {
             timing.textContent += `\nVULNERABILITY DETECTED: Content streaming started at ${firstByteTime}ms BEFORE settlement failed!\nThe middleware sent response data before verifying payment settlement.`;
-          } else if (response.status === 402 && !receivedContent) {
+          } else if (response.status === 402 && chunks.length === 0) {
             timing.textContent += `\nSECURE: No content leaked. Settlement failed and 402 returned without sending response data.`;
-          } else if (receivedContent) {
+          } else if (chunks.length > 0) {
             timing.textContent += `\nContent streaming started at: ${firstByteTime}ms`;
           }
 
