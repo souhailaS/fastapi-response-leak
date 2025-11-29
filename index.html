@@ -4,13 +4,16 @@
     <title>Testing Middleware</title>
   </head>
   <body>
-
     <h1 id="server-title"></h1>
 
     <p id="server-description"></p>
 
-        <p>Here it shows the timing difference between vulnerable and secure payment middleware implementations. The vulnerable version streams response content before settlement completes, while the secure version buffers content until settlement verification is complete.</p>
-
+    <p>
+      Here it shows the timing difference between vulnerable and secure payment
+      middleware implementations. The vulnerable version streams response
+      content before settlement completes, while the secure version buffers
+      content until settlement verification is complete.
+    </p>
 
     <button onclick="testEndpoint('/weather')">Test /weather</button>
     <button onclick="testEndpoint('/stream')">Test /stream</button>
@@ -28,7 +31,7 @@
       const serverType = isVulnerable ? "VULNERABLE" : "SECURE";
       const description = isVulnerable
         ? "THIS IS THE VULNERABLE MIDDLEWARE"
-        : "THIS IS THE SECURE MIDDLEWARE";  
+        : "THIS IS THE SECURE MIDDLEWARE";
 
       document.getElementById(
         "server-title"
@@ -67,21 +70,42 @@
           const totalTime = Date.now() - start;
           const text = chunks.join("");
 
-          // Show response details
+          // console.log(response);
+          // console.log(response.body);
+          
+
+
           result.textContent = `Status Code: ${response.status}\n`;
           result.textContent += `Total Time: ${totalTime}ms\n`;
           result.textContent += `\nResponse Body:\n${text || "(empty)"}`;
 
-          timing.textContent += `\nFinal response at: ${totalTime}ms\n`;
+          result.textContent += `\n\nFull Raw Response:\n${JSON.stringify(
+            response,
+            null,
+            2
+          )}`;
 
-          if (response.status === 402 && chunks.length > 0) {
-            timing.textContent += `\nVULNERABILITY DETECTED: Content streaming started at ${firstByteTime}ms BEFORE settlement failed!\nThe middleware sent response data before verifying payment settlement.`;
+          // read the response stream please .. the body is ReadableStream response.body
+          result.textContent +=  `\n\nResponse Stream Chunks:\n${JSON.stringify(
+            chunks,
+            null,
+            2
+          )}`;
+
+
+          timing.textContent += `\nFinal response at: ${totalTime}ms\n`;
+          // just for logging purposes
+          const SETTLEMENT_TIME = 500;
+
+          if (response.status === 402 && firstByteTime && firstByteTime < SETTLEMENT_TIME) {
+            timing.textContent += `\nVULNERABILITY DETECTED: Content streaming started at ${firstByteTime}ms BEFORE settlement completed (${SETTLEMENT_TIME}ms)!\nThe middleware sent response data before verifying payment settlement.`;
+          } else if (response.status === 402 && chunks.length > 0) {
+            timing.textContent += `\nSECURE: 402 response received at ${firstByteTime}ms AFTER settlement completed (${SETTLEMENT_TIME}ms).`;
           } else if (response.status === 402 && chunks.length === 0) {
             timing.textContent += `\nSECURE: No content leaked. Settlement failed and 402 returned without sending response data.`;
           } else if (chunks.length > 0) {
             timing.textContent += `\nContent streaming started at: ${firstByteTime}ms`;
           }
-
         } catch (error) {
           result.textContent = `Error: ${error.message}`;
         }

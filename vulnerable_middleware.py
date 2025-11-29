@@ -22,29 +22,15 @@ app.add_middleware(
 async def vulnerable_middleware(request: Request, call_next):
     if request.url.path == "/":
         return await call_next(request)
-
-    print("Starting request processing")
-
+    
     response = await call_next(request)
+    asyncio.create_task(simulate_settlement())
 
-    await simulate_settlement()
-    settlement_success = False
-
-    if settlement_success:
-        print("Settlement succeeded")
-        return response
-    else:
-        # @souhailaS: settlement failed, but response is already sent partially..
-        return JSONResponse(
-            status_code=402,
-            content={"error": "Payment Required"}
-        )
+    return response
 
 
 async def simulate_settlement():
-    print("Settlement in progress...")
     await asyncio.sleep(0.5)
-    print("Settlement complete")
 
 
 @app.get("/")

@@ -23,25 +23,18 @@ async def secure_middleware(request: Request, call_next):
     if request.url.path == "/":
         return await call_next(request)
 
-    print("Starting request processing")
-
     response = await call_next(request)
 
-
-
-    response_body = b"" # @souhailaS: buffer the entire response because we may need to discard it
+    response_body = b""
     async for chunk in response.body_iterator:
         response_body += chunk
 
     print(f"Buffered {len(response_body)} bytes")
-    print("Content is NOT sent to client yet")
 
-    print("Now performing settlement")
     await simulate_settlement()
     settlement_success = False
 
     if settlement_success:
-        print("Settlement succeeded - delivering content")
         return Response(
             content=response_body,
             status_code=response.status_code,
@@ -49,7 +42,6 @@ async def secure_middleware(request: Request, call_next):
             media_type=response.media_type,
         )
     else:
-        print("Settlement FAILED - returning 402, NO content leaked")
         return JSONResponse(
             status_code=402,
             content={"error": "Payment Required"}
@@ -57,9 +49,7 @@ async def secure_middleware(request: Request, call_next):
 
 
 async def simulate_settlement():
-    print("Settlement in progress...")
     await asyncio.sleep(0.5)
-    print("Settlement complete")
 
 
 @app.get("/")
