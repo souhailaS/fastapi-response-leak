@@ -19,14 +19,7 @@
     <button onclick="testSecure('/stream')">Test /stream</button>
     <pre id="secure-result"></pre>
     <pre id="secure-timing"></pre>
-
-    <h2>Instructions</h2>
-    <ol>
-        <li>Run vulnerable server: python vulnerable_middleware.py</li>
-        <li>Run secure server: python secure_middleware.py</li>
-        <li>Click buttons above to test endpoints</li>
-        <li>Check browser console and server logs for timing</li>
-    </ol>
+    
 
     <script>
         async function testVulnerable(endpoint) {
