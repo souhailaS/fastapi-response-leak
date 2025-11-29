@@ -94,17 +94,16 @@
 
 
           timing.textContent += `\nFinal response at: ${totalTime}ms\n`;
-          // just for logging purposes
-          const SETTLEMENT_TIME = 500;
 
-          if (response.status === 402 && firstByteTime && firstByteTime < SETTLEMENT_TIME) {
-            timing.textContent += `\nVULNERABILITY DETECTED: Content streaming started at ${firstByteTime}ms BEFORE settlement completed (${SETTLEMENT_TIME}ms)!\nThe middleware sent response data before verifying payment settlement.`;
-          } else if (response.status === 402 && chunks.length > 0) {
-            timing.textContent += `\nSECURE: 402 response received at ${firstByteTime}ms AFTER settlement completed (${SETTLEMENT_TIME}ms).`;
-          } else if (response.status === 402 && chunks.length === 0) {
-            timing.textContent += `\nSECURE: No content leaked. Settlement failed and 402 returned without sending response data.`;
-          } else if (chunks.length > 0) {
-            timing.textContent += `\nContent streaming started at: ${firstByteTime}ms`;
+          const hasEndpointData = text.includes("weather") || text.includes("chunk");
+          const hasErrorMessage = text.includes("error") || text.includes("Payment Required");
+
+          if (response.status === 402 && hasEndpointData) {
+            timing.textContent += `\nVULNERABILITY DETECTED: Received actual endpoint data with 402 status!\nThe middleware returned the original response with unconsumed body_iterator.\nProtected content was exposed even though settlement failed.`;
+          } else if (response.status === 402 && hasErrorMessage) {
+            timing.textContent += `\nSECURE: 402 response contains only error message, no endpoint data leaked.\nThe buffered response body was discarded and never sent to client.`;
+          } else if (response.status === 200 && chunks.length > 0) {
+            timing.textContent += `\nPayment succeeded: Content delivered at ${firstByteTime}ms`;
           }
         } catch (error) {
           result.textContent = `Error: ${error.message}`;

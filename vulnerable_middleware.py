@@ -22,11 +22,19 @@ app.add_middleware(
 async def vulnerable_middleware(request: Request, call_next):
     if request.url.path == "/":
         return await call_next(request)
-    
-    response = await call_next(request)
-    asyncio.create_task(simulate_settlement())
 
-    return response
+    response = await call_next(request)
+
+    await simulate_settlement()
+    settlement_success = False
+
+    if settlement_success:
+        return response
+    else:
+        return JSONResponse(
+            status_code=402,
+            content={"error": "Payment Required"}
+        )
 
 
 async def simulate_settlement():
