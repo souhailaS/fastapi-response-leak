@@ -15,7 +15,10 @@
     <button onclick="testEndpoint('/weather')">Test /weather</button>
     <button onclick="testEndpoint('/stream')">Test /stream</button>
 
+    <h3>Response:</h3>
     <pre id="result"></pre>
+
+    <h3>Timing Analysis:</h3>
     <pre id="timing"></pre>
 
     <script>
@@ -64,7 +67,11 @@
           const totalTime = Date.now() - start;
           const text = chunks.join("");
 
-          result.textContent = `Status: ${response.status}\nTotal time: ${totalTime}ms\nResponse: ${text}`;
+          // Show response details
+          result.textContent = `Status Code: ${response.status}\n`;
+          result.textContent += `Total Time: ${totalTime}ms\n`;
+          result.textContent += `\nResponse Body:\n${text || "(empty)"}`;
+
           timing.textContent += `\nFinal response at: ${totalTime}ms\n`;
 
           if (response.status === 402 && chunks.length > 0) {
