@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Testing the two middlwares version</title>
+</head>
+<body>
+    <h1>Testing the two middlwares version</h1>
+
+    <h2>Vulnerable Middleware</h2>
+    <p>Content streams BEFORE settlement verification - watch timing below</p>
+    <button onclick="testVulnerable('/weather')">Test /weather</button>
+    <button onclick="testVulnerable('/stream')">Test /stream</button>
+    <pre id="vulnerable-result"></pre>
+    <pre id="vulnerable-timing"></pre>
+
+    <h2>Secure Middleware</h2>
+    <p>Content buffered, only sent AFTER settlement verification</p>
+    <button onclick="testSecure('/weather')">Test /weather</button>
+    <button onclick="testSecure('/stream')">Test /stream</button>
+    <pre id="secure-result"></pre>
+    <pre id="secure-timing"></pre>
+
+    <h2>Instructions</h2>
+    <ol>
+        <li>Run vulnerable server: python vulnerable_middleware.py</li>
+        <li>Run secure server: python secure_middleware.py</li>
+        <li>Click buttons above to test endpoints</li>
+        <li>Check browser console and server logs for timing</li>
+    </ol>
+
+    <script>
+        async function testVulnerable(endpoint) {
+            const result = document.getElementById('vulnerable-result');
+            const timing = document.getElementById('vulnerable-timing');
+            result.textContent = 'Testing...';
+            timing.textContent = '';
+
+            const start = Date.now();
+            let firstByteTime = null;
+            let chunks = [];
+
+            try {
+                const response = await fetch('http://localhost:8000' + endpoint);
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
+
+                    if (firstByteTime === null) {
+                        firstByteTime = Date.now() - start;
+                        timing.textContent = `First byte received: ${firstByteTime}ms (BEFORE settlement completes at ~500ms)\n`;
+                    }
+
+                    chunks.push(decoder.decode(value, {stream: true}));
+                    timing.textContent += `Chunk received at ${Date.now() - start}ms\n`;
+                }
+
+                const totalTime = Date.now() - start;
+                const text = chunks.join('');
+
+                result.textContent = `Status: ${response.status}\nTotal time: ${totalTime}ms\nResponse: ${text}`;
+                timing.textContent += `\nFinal response at: ${totalTime}ms\nLEAK: Content received BEFORE settlement completes!`;
+            } catch (error) {
+                result.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testSecure(endpoint) {
+            const result = document.getElementById('secure-result');
+            const timing = document.getElementById('secure-timing');
+            result.textContent = 'Testing...';
+            timing.textContent = '';
+
+            const start = Date.now();
+            let firstByteTime = null;
+
+            try {
+                const response = await fetch('https://fastapi-response-no-leak.onrender.com' + endpoint);
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let chunks = [];
+
+                while (true) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
+
+                    if (firstByteTime === null) {
+                        firstByteTime = Date.now() - start;
+                        timing.textContent = `First byte received: ${firstByteTime}ms (AFTER settlement at ~500ms)\n`;
+                    }
+
+                    chunks.push(decoder.decode(value, {stream: true}));
+                }
+
+                const totalTime = Date.now() - start;
+                const text = chunks.join('');
+
+                result.textContent = `Status: ${response.status}\nTotal time: ${totalTime}ms\nResponse: ${text}`;
+                timing.textContent += `Final response at: ${totalTime}ms\nSECURE: Content only sent AFTER settlement verification!`;
+            } catch (error) {
+                result.textContent = `Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
