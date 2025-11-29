@@ -1,103 +1,86 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <title>Testing the two middlwares version</title>
-</head>
-<body>
-    <h1>Testing the two middlwares version</h1>
+  <head>
+    <title>Testing Middleware</title>
+  </head>
+  <body>
 
-    <h2>Vulnerable Middleware</h2>
-    <p>Content streams BEFORE settlement verification - watch timing below</p>
-    <button onclick="testVulnerable('/weather')">Test /weather</button>
-    <button onclick="testVulnerable('/stream')">Test /stream</button>
-    <pre id="vulnerable-result"></pre>
-    <pre id="vulnerable-timing"></pre>
+    <h1 id="server-title"></h1>
 
-    <h2>Secure Middleware</h2>
-    <p>Content buffered, only sent AFTER settlement verification</p>
-    <button onclick="testSecure('/weather')">Test /weather</button>
-    <button onclick="testSecure('/stream')">Test /stream</button>
-    <pre id="secure-result"></pre>
-    <pre id="secure-timing"></pre>
-    
+    <p id="server-description"></p>
+
+        <p>Here it shows the timing difference between vulnerable and secure payment middleware implementations. The vulnerable version streams response content before settlement completes, while the secure version buffers content until settlement verification is complete.</p>
+
+
+    <button onclick="testEndpoint('/weather')">Test /weather</button>
+    <button onclick="testEndpoint('/stream')">Test /stream</button>
+
+    <pre id="result"></pre>
+    <pre id="timing"></pre>
 
     <script>
-        async function testVulnerable(endpoint) {
-            const result = document.getElementById('vulnerable-result');
-            const timing = document.getElementById('vulnerable-timing');
-            result.textContent = 'Testing...';
-            timing.textContent = '';
+      const currentPort = window.location.port;
+      const isVulnerable = currentPort === "8000";
 
-            const start = Date.now();
-            let firstByteTime = null;
-            let chunks = [];
+      const serverType = isVulnerable ? "VULNERABLE" : "SECURE";
+      const description = isVulnerable
+        ? "THIS IS THE VULNERABLE MIDDLEWARE"
+        : "THIS IS THE SECURE MIDDLEWARE";  
 
-            try {
-                const response = await fetch('http://localhost:8000' + endpoint);
+      document.getElementById(
+        "server-title"
+      ).textContent = `${serverType} Middleware`;
+      document.getElementById("server-description").textContent = description;
 
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
+      async function testEndpoint(endpoint) {
+        const result = document.getElementById("result");
+        const timing = document.getElementById("timing");
+        result.textContent = "Testing...";
+        timing.textContent = "";
 
-                while (true) {
-                    const {done, value} = await reader.read();
-                    if (done) break;
+        const start = Date.now();
+        let firstByteTime = null;
+        let chunks = [];
+        let receivedContent = false;
 
-                    if (firstByteTime === null) {
-                        firstByteTime = Date.now() - start;
-                        timing.textContent = `First byte received: ${firstByteTime}ms (BEFORE settlement completes at ~500ms)\n`;
-                    }
+        try {
+          const response = await fetch(endpoint);
 
-                    chunks.push(decoder.decode(value, {stream: true}));
-                    timing.textContent += `Chunk received at ${Date.now() - start}ms\n`;
-                }
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
 
-                const totalTime = Date.now() - start;
-                const text = chunks.join('');
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-                result.textContent = `Status: ${response.status}\nTotal time: ${totalTime}ms\nResponse: ${text}`;
-                timing.textContent += `\nFinal response at: ${totalTime}ms\nLEAK: Content received BEFORE settlement completes!`;
-            } catch (error) {
-                result.textContent = `Error: ${error.message}`;
+            if (firstByteTime === null) {
+              firstByteTime = Date.now() - start;
+              receivedContent = true;
+              timing.textContent = `First byte received: ${firstByteTime}ms\n`;
             }
+
+            chunks.push(decoder.decode(value, { stream: true }));
+            timing.textContent += `Chunk received at ${Date.now() - start}ms\n`;
+          }
+
+          const totalTime = Date.now() - start;
+          const text = chunks.join("");
+
+          result.textContent = `Status: ${response.status}\nTotal time: ${totalTime}ms\nResponse: ${text}`;
+          timing.textContent += `\nFinal response at: ${totalTime}ms\n`;
+
+          if (response.status === 402 && receivedContent) {
+            timing.textContent += `\nVULNERABILITY DETECTED: Content streaming started at ${firstByteTime}ms BEFORE settlement failed!\nThe middleware sent response data before verifying payment settlement.`;
+          } else if (response.status === 402 && !receivedContent) {
+            timing.textContent += `\nSECURE: No content leaked. Settlement failed and 402 returned without sending response data.`;
+          } else if (receivedContent) {
+            timing.textContent += `\nContent streaming started at: ${firstByteTime}ms`;
+          }
+
+        } catch (error) {
+          result.textContent = `Error: ${error.message}`;
         }
-
-        async function testSecure(endpoint) {
-            const result = document.getElementById('secure-result');
-            const timing = document.getElementById('secure-timing');
-            result.textContent = 'Testing...';
-            timing.textContent = '';
-
-            const start = Date.now();
-            let firstByteTime = null;
-
-            try {
-                const response = await fetch('https://fastapi-response-no-leak.onrender.com' + endpoint);
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let chunks = [];
-
-                while (true) {
-                    const {done, value} = await reader.read();
-                    if (done) break;
-
-                    if (firstByteTime === null) {
-                        firstByteTime = Date.now() - start;
-                        timing.textContent = `First byte received: ${firstByteTime}ms (AFTER settlement at ~500ms)\n`;
-                    }
-
-                    chunks.push(decoder.decode(value, {stream: true}));
-                }
-
-                const totalTime = Date.now() - start;
-                const text = chunks.join('');
-
-                result.textContent = `Status: ${response.status}\nTotal time: ${totalTime}ms\nResponse: ${text}`;
-                timing.textContent += `Final response at: ${totalTime}ms\nSECURE: Content only sent AFTER settlement verification!`;
-            } catch (error) {
-                result.textContent = `Error: ${error.message}`;
-            }
-        }
+      }
     </script>
-</body>
+  </body>
 </html>

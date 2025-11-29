@@ -1,9 +1,10 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any
 import asyncio
 import uvicorn
+import os
 
 
 app = FastAPI()
@@ -19,6 +20,9 @@ app.add_middleware(
 
 @app.middleware("http")
 async def vulnerable_middleware(request: Request, call_next):
+    if request.url.path == "/":
+        return await call_next(request)
+
     print("Starting request processing")
 
     response = await call_next(request)
@@ -41,6 +45,12 @@ async def simulate_settlement():
     print("Settlement in progress...")
     await asyncio.sleep(0.5)
     print("Settlement complete")
+
+
+@app.get("/")
+async def serve_html():
+    html_path = os.path.join(os.path.dirname(__file__), "index.html")
+    return FileResponse(html_path)
 
 
 @app.get("/weather")
@@ -71,3 +81,5 @@ async def paid():
 if __name__ == "__main__":
     print("Watch server logs .. content is sent BEFORE settlement completes")
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
